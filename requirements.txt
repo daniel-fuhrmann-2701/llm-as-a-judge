@@ -1,0 +1,41 @@
+# LLM-as-a-Judge Evaluation Framework
+# Python 3.10+ required
+
+# Core LLM clients
+openai>=1.0.0
+azure-identity>=1.15.0
+
+# LangChain ecosystem (for agentic system)
+langchain>=0.1.0
+langchain-openai>=0.0.5
+langchain-huggingface>=0.0.1
+langchain-chroma>=0.1.0
+langchain-community>=0.0.10
+
+# Vector database
+chromadb>=0.4.0
+
+# Embeddings
+sentence-transformers>=2.2.0
+
+# Data processing
+pandas>=2.0.0
+numpy>=1.24.0
+openpyxl>=3.1.0
+
+# Statistical analysis
+scipy>=1.10.0
+scikit-learn>=1.3.0
+
+# Templating
+jinja2>=3.1.0
+
+# Async HTTP
+aiohttp>=3.9.0
+requests>=2.31.0
+
+# Environment management
+python-dotenv>=1.0.0
+
+# Development dependencies
+pytest>=7.4.0
