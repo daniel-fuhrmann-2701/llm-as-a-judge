@@ -1,6 +1,6 @@
 # Statistical Evaluation
 
-This folder contains the reliability analysis for comparing LLM judges (GPT-4o-mini and Gemini Flash).
+This folder contains the reliability analysis for comparing LLM judges (GPT-4o-mini and Gemini Flash 1.5).
 
 ## Files Overview
 
