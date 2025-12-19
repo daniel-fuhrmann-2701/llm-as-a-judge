@@ -24,6 +24,15 @@ from .models import EvaluationRubric, AnswerEvaluation, EvaluationInput, SourceS
 from .utils import parse_file_content, normalize_system_type_name, handle_exceptions, log_operation, calculate_snippet_grounding_score
 from .llm_client import call_llm_evaluator
 
+# Try to import from config, but fallback to advanced_config
+try:
+    from .config import logger, EvalConfig
+except ImportError:
+    import logging
+    logger = logging.getLogger(__name__)
+    # Define a minimal EvalConfig for backward compatibility
+    class EvalConfig:
+        pass
 
 def evaluate_answers_with_snippets(
     evaluation_inputs: List[EvaluationInput], 

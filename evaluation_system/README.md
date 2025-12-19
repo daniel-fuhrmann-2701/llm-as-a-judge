@@ -77,26 +77,34 @@ evaluation.snippet_grounding_score = calculate_snippet_grounding_score(
 
 ### 3. Evaluation Dimensions (`enums.py`, `advanced_config.py`)
 
-**Eight Evaluation Dimensions** (academic weights normalized to ~1.0):
+**5 Evaluation Dimensions** (academic weights normalized to ~1.0):
 
-| Dimension | Weight | Purpose |
-|-----------|--------|---------|
-| `FACTUAL_ACCURACY` | 0.25 | Verifiability of claims against sources |
-| `RELEVANCE` | 0.20 | Query-response alignment |
-| `COMPLETENESS` | 0.15 | Coverage of query aspects |
-| `CLARITY` | 0.13 | Linguistic quality and organization |
-| `CITATION_QUALITY` | 0.07 | Source attribution quality |
-| `GDPR_COMPLIANCE` | 0.12 | Data protection adherence |
-| `EU_AI_ACT_ALIGNMENT` | 0.12 | AI regulatory compliance |
-| `AUDIT_TRAIL_QUALITY` | 0.08 | Decision traceability |
+| Dimension           | Description                  |
+|---------------------|------------------------------|
+| Factual Accuracy    | Correctness of claims        |
+| Relevance           | Query-response alignment     |
+| Completeness        | Coverage of query aspects    |
+| Clarity             | Organization and readability |
+| Citation Quality    | Source attribution           |
 
-**Design Decision**: Regulatory dimensions (GDPR, EU AI Act, Audit Trail) constitute ~32% of total weight, reflecting enterprise compliance requirements in the research context.
 
 ### 4. Prompt Templates (`templates.py`)
 
-**Two Template Variants**:
-- `SNIPPET_EVALUATION_PROMPT`: Enhanced template for RAG evaluation with source grounding analysis
-- `STANDARD_EVALUATION_PROMPT`: Generic template for agentic system evaluation
+**Three Template Variants**:
+
+| Template | Use Case | Key Features |
+|----------|----------|--------------|
+| `STANDARD_EVALUATION_PROMPT` | Generic evaluation | Basic dimension scoring |
+| `SNIPPET_EVALUATION_PROMPT` | RAG with snippets | Source grounding analysis |
+| `ENHANCED_SNIPPET_EVALUATION_PROMPT` | Advanced RAG | Separation of content quality vs source utilization |
+
+**Note**: Final evaluations in this research used the `ENHANCED_SNIPPET_EVALUATION_PROMPT` template.
+
+**Enhanced Template Principles**:
+- **Content Quality**: Factual accuracy evaluated independently of snippet support
+- **Source Utilization**: Separate assessment of how well snippets are used
+- **System-Aware Evaluation**: Does not penalize systems for architectural design choices (e.g., no explicit citations)
+- **Dual Assessment**: Content dimensions scored on response quality; source dimensions on snippet grounding
 
 **Template Structure** (Jinja2):
 ```jinja2
@@ -116,32 +124,12 @@ evaluation.snippet_grounding_score = calculate_snippet_grounding_score(
 {
     "scores": { ... },           // 1-5 per dimension
     "justifications": { ... },   // Evidence-based reasoning
-    "confidence_scores": { ... } // 0.0-1.0 per dimension
+    "confidence_scores": { ... }, // 0.0-1.0 per dimension
+    "snippet_analysis": { ... }  // Grounding and citation assessment
 }
 ```
 
-### 5. Statistical Analysis (`statistics.py`)
-
-**Purpose**: Rigorous statistical comparison between RAG and Agentic system evaluations.
-
-**Methods Implemented**:
-- **Cohen's d**: Effect size calculation for practical significance
-- **Independent t-tests**: Statistical significance per dimension
-- **Confidence Intervals**: 95% CI for mean differences
-- **Inter-rater Reliability**: Cohen's kappa for multi-rater agreement studies
-
-```python
-def perform_statistical_comparison(rag_evaluations, agentic_evaluations, config):
-    """
-    Returns ComparisonResult with:
-    - statistical_significance: {dimension: {t_stat, p_value, significant}}
-    - effect_sizes: {dimension: Cohen's d}
-    - overall_winner: SystemType.RAG or SystemType.AGENTIC
-    - confidence_interval: (lower, upper) for mean difference
-    """
-```
-
-### 6. Data Models (`models.py`)
+### 5. Data Models (`models.py`)
 
 **Core Data Structures**:
 
@@ -294,6 +282,7 @@ Core dependencies (see `requirements.txt`):
 ```
 openai>=1.0.0
 azure-identity>=1.15.0
+google-genai>=1.0.0
 pandas>=2.0.0
 scipy>=1.10.0
 numpy>=1.24.0

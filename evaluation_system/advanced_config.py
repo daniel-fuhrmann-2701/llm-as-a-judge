@@ -18,7 +18,7 @@ from dataclasses import dataclass, field, asdict
 from typing import Dict, List, Optional, Union, Any, Tuple
 from datetime import datetime
 
-from .enums import EvaluationDimension
+from .enums import EvaluationDimension, LLMProvider
 from .models import EvaluationRubric
 
 
@@ -53,6 +53,36 @@ class SemanticSimilarityConfig:
     weight_semantic_similarity: float = 0.7
     enable_caching: bool = True
     cache_size: int = 1000
+
+
+@dataclass 
+class AzureOpenAIConfig:
+    """Configuration for Azure OpenAI provider."""
+    endpoint: Optional[str] = None
+    deployment: Optional[str] = None
+    api_version: str = "2024-02-15-preview"
+    temperature: float = 0.0
+    top_p: float = 1.0
+    max_tokens: int = 4096
+    timeout: int = 180
+    max_retries: int = 5
+    retry_delay: float = 10.0
+    use_managed_identity: bool = True
+
+
+@dataclass
+class GeminiConfig:
+    """Configuration for Google Gemini provider."""
+    model_name: str = "gemini-2.0-flash-001"
+    temperature: float = 0.0
+    top_p: float = 1.0
+    max_output_tokens: int = 4096
+    timeout: int = 180
+    max_retries: int = 5
+    retry_delay: float = 10.0
+    thinking_budget: int = 0
+    # Safety settings will be disabled by default for evaluation
+    disable_safety_filters: bool = True
 
 
 @dataclass 
@@ -134,8 +164,15 @@ class AdvancedEvalConfig:
     config_version: str = "2.0"
     created_at: str = field(default_factory=lambda: datetime.now().isoformat())
     
+    # LLM Provider selection and configurations
+    llm_provider: LLMProvider = LLMProvider.AZURE
+    azure_config: AzureOpenAIConfig = field(default_factory=AzureOpenAIConfig)
+    gemini_config: GeminiConfig = field(default_factory=GeminiConfig)
+    
+    # Legacy provider config for backwards compatibility
+    llm_provider_legacy: LLMProviderConfig = field(default_factory=LLMProviderConfig)
+    
     # Component configurations
-    llm_provider: LLMProviderConfig = field(default_factory=LLMProviderConfig)
     evaluation: EvaluationConfig = field(default_factory=EvaluationConfig) 
     semantic_similarity: SemanticSimilarityConfig = field(default_factory=SemanticSimilarityConfig)
     output: OutputConfig = field(default_factory=OutputConfig)
@@ -145,12 +182,12 @@ class AdvancedEvalConfig:
     
     # Environment variables mapping
     env_var_mapping: Dict[str, str] = field(default_factory=lambda: {
-        "AZURE_OPENAI_ENDPOINT": "llm_provider.azure_endpoint",
-        "AZURE_OPENAI_DEPLOYMENT": "llm_provider.azure_deployment", 
-        "AZURE_OPENAI_API_VERSION": "llm_provider.azure_api_version",
-        "OPENAI_API_KEY": "llm_provider.api_key",
-        "EVAL_MODEL": "llm_provider.model_name",
-        "EVAL_TEMPERATURE": "llm_provider.temperature",
+        "AZURE_OPENAI_ENDPOINT": "azure_config.endpoint",
+        "AZURE_OPENAI_DEPLOYMENT": "azure_config.deployment", 
+        "AZURE_OPENAI_API_VERSION": "azure_config.api_version",
+        "GEMINI_MODEL_NAME": "gemini_config.model_name",
+        "LLM_PROVIDER": "llm_provider",
+        "EVAL_TEMPERATURE": "azure_config.temperature",  # Default to Azure config
         "CONFIDENCE_THRESHOLD": "evaluation.confidence_threshold",
         "LOG_LEVEL": "output.log_level"
     })
@@ -165,29 +202,41 @@ class AdvancedEvalConfig:
         # Compatibility: expose dimensions at top level for existing evaluation code
         self.dimensions = self.evaluation.dimensions
         
-        # Additional compatibility attributes
-        self.azure_endpoint = self.llm_provider.azure_endpoint
-        self.deployment_name = self.llm_provider.azure_deployment
-        self.api_version = self.llm_provider.azure_api_version
-        self.model_name = self.llm_provider.model_name
-        self.temperature = self.llm_provider.temperature
-        self.max_retries = self.llm_provider.max_retries
-        self.retry_delay = self.llm_provider.retry_delay
-        self.timeout = self.llm_provider.timeout
+        # Additional compatibility attributes based on current provider
+        current_config = self.get_current_provider_config()
+        
+        # Legacy compatibility - map to old structure
+        self.azure_endpoint = getattr(current_config, 'endpoint', None) or self.azure_config.endpoint
+        self.deployment_name = getattr(current_config, 'deployment', None) or self.azure_config.deployment
+        self.api_version = getattr(current_config, 'api_version', None) or self.azure_config.api_version
+        self.model_name = getattr(current_config, 'model_name', 'gpt-4o-mini')
+        self.temperature = current_config.temperature
+        self.max_retries = current_config.max_retries
+        self.retry_delay = current_config.retry_delay
+        self.timeout = current_config.timeout
         self.confidence_threshold = self.evaluation.confidence_threshold
+    
+    def get_current_provider_config(self):
+        """Get the configuration for the currently selected provider."""
+        if self.llm_provider == LLMProvider.AZURE:
+            return self.azure_config
+        elif self.llm_provider == LLMProvider.GEMINI:
+            return self.gemini_config
+        else:
+            raise ValueError(f"Unsupported LLM provider: {self.llm_provider}")
     
     def _get_default_rubrics(self) -> Dict[EvaluationDimension, EvaluationRubric]:
         """Get default academic rubrics with profile-specific weights."""
         base_rubrics = {
             EvaluationDimension.FACTUAL_ACCURACY: EvaluationRubric(
                 dimension=EvaluationDimension.FACTUAL_ACCURACY,
-                description="Accuracy of factual claims against ground truth or authoritative sources",
-                criteria_5="All factual claims are accurate and verifiable (>95% accuracy)",
+                description="Accuracy of factual claims based on domain knowledge and established facts (independent of snippet support)",
+                criteria_5="All factual claims are accurate and verifiable based on domain knowledge (>95% accuracy)",
                 criteria_4="Most factual claims accurate with minor inaccuracies (85-95% accuracy)", 
                 criteria_3="Generally accurate with some notable errors (75-84% accuracy)",
                 criteria_2="Multiple factual errors present (65-74% accuracy)",
                 criteria_1="Significant factual inaccuracies or misinformation (<65% accuracy)",
-                weight=0.25
+                weight=0.22
             ),
             EvaluationDimension.RELEVANCE: EvaluationRubric(
                 dimension=EvaluationDimension.RELEVANCE,
@@ -197,7 +246,7 @@ class AdvancedEvalConfig:
                 criteria_3="Generally relevant with some tangential information",
                 criteria_2="Partially relevant but includes significant off-topic content",
                 criteria_1="Minimally relevant or addresses different question entirely",
-                weight=0.2
+                weight=0.18
             ),
             EvaluationDimension.COMPLETENESS: EvaluationRubric(
                 dimension=EvaluationDimension.COMPLETENESS,
@@ -207,7 +256,7 @@ class AdvancedEvalConfig:
                 criteria_3="Adequate coverage of main points with some omissions",
                 criteria_2="Partial coverage leaving important aspects unaddressed",
                 criteria_1="Incomplete response missing critical information",
-                weight=0.15
+                weight=0.14
             ),
             EvaluationDimension.CLARITY: EvaluationRubric(
                 dimension=EvaluationDimension.CLARITY,
@@ -217,7 +266,7 @@ class AdvancedEvalConfig:
                 criteria_3="Generally clear with minor organizational issues",
                 criteria_2="Somewhat unclear or poorly organized",
                 criteria_1="Difficult to understand due to poor structure or language",
-                weight=0.13
+                weight=0.12
             ),
             EvaluationDimension.CITATION_QUALITY: EvaluationRubric(
                 dimension=EvaluationDimension.CITATION_QUALITY,
@@ -227,7 +276,7 @@ class AdvancedEvalConfig:
                 criteria_3="Adequate citations with some quality concerns",
                 criteria_2="Poor citation quality or inappropriate sources",
                 criteria_1="Missing, invalid, or misleading citations",
-                weight=0.07
+                weight=0.06
             ),
             EvaluationDimension.GDPR_COMPLIANCE: EvaluationRubric(
                 dimension=EvaluationDimension.GDPR_COMPLIANCE,
@@ -237,7 +286,7 @@ class AdvancedEvalConfig:
                 criteria_3="Generally GDPR compliant with some technical requirements missing",
                 criteria_2="Partial GDPR compliance with significant gaps in data protection",
                 criteria_1="Poor GDPR compliance with potential legal violations",
-                weight=0.12
+                weight=0.11
             ),
             EvaluationDimension.EU_AI_ACT_ALIGNMENT: EvaluationRubric(
                 dimension=EvaluationDimension.EU_AI_ACT_ALIGNMENT,
@@ -247,7 +296,7 @@ class AdvancedEvalConfig:
                 criteria_3="Generally compliant with some risk management deficiencies",
                 criteria_2="Partial AI Act compliance with significant regulatory gaps",
                 criteria_1="Poor AI Act alignment with potential regulatory violations",
-                weight=0.12
+                weight=0.10
             ),
             EvaluationDimension.AUDIT_TRAIL_QUALITY: EvaluationRubric(
                 dimension=EvaluationDimension.AUDIT_TRAIL_QUALITY,
@@ -257,7 +306,7 @@ class AdvancedEvalConfig:
                 criteria_3="Adequate audit trail with some missing decision points",
                 criteria_2="Partial audit documentation with significant traceability gaps",
                 criteria_1="Poor or missing audit trail compromising accountability",
-                weight=0.08
+                weight=0.07
             ),
         }
         
@@ -286,14 +335,22 @@ class AdvancedEvalConfig:
         for part in parts[:-1]:
             obj = getattr(obj, part)
         
-        # Type conversion based on existing attribute type
-        existing_value = getattr(obj, parts[-1])
-        if isinstance(existing_value, bool):
-            value = value.lower() in ('true', '1', 'yes', 'on')
-        elif isinstance(existing_value, int):
-            value = int(value)
-        elif isinstance(existing_value, float):
-            value = float(value)
+        # Handle special case for llm_provider enum
+        if parts[-1] == 'llm_provider' and isinstance(value, str):
+            if value.upper() in [provider.name for provider in LLMProvider]:
+                value = LLMProvider[value.upper()]
+            else:
+                logger.warning(f"Unknown LLM provider: {value}, defaulting to AZURE")
+                value = LLMProvider.AZURE
+        else:
+            # Type conversion based on existing attribute type
+            existing_value = getattr(obj, parts[-1])
+            if isinstance(existing_value, bool):
+                value = value.lower() in ('true', '1', 'yes', 'on')
+            elif isinstance(existing_value, int):
+                value = int(value)
+            elif isinstance(existing_value, float):
+                value = float(value)
         
         setattr(obj, parts[-1], value)
         logger.debug(f"Set {path} = {value} from environment")
@@ -352,13 +409,24 @@ class AdvancedEvalConfig:
             if not (0.0 <= self.evaluation.significance_level <= 0.1):
                 errors.append(f"Significance level should be ≤0.1, got {self.evaluation.significance_level}")
                 
-            # Validate temperature
-            if not (0.0 <= self.llm_provider.temperature <= 2.0):
-                errors.append(f"Temperature must be 0-2, got {self.llm_provider.temperature}")
+            # Validate temperature for current provider
+            current_config = self.get_current_provider_config()
+            if not (0.0 <= current_config.temperature <= 2.0):
+                errors.append(f"Temperature must be 0-2, got {current_config.temperature}")
             
             # Validate required rubrics
             if not self.rubrics:
                 errors.append("No evaluation rubrics defined")
+                
+            # Validate provider-specific configurations
+            if self.llm_provider == LLMProvider.AZURE:
+                if not self.azure_config.endpoint:
+                    errors.append("Azure endpoint is required when using Azure provider")
+                if not self.azure_config.deployment:
+                    errors.append("Azure deployment is required when using Azure provider")
+            elif self.llm_provider == LLMProvider.GEMINI:
+                if not self.gemini_config.model_name:
+                    errors.append("Model name is required when using Gemini provider")
             
             return len(errors) == 0, errors
             
@@ -468,3 +536,20 @@ def validate_environment_setup() -> Dict[str, bool]:
     status["recommended_setup"] = all(status[var] for var in required_vars) and azure_oauth_setup
     
     return status
+
+
+# Backward compatibility constants - these map to the current provider config
+def _get_default_config():
+    """Get default configuration instance."""
+    return create_default_config()
+
+# Legacy constants for backward compatibility
+_DEFAULT_CONFIG = _get_default_config()
+
+# LLM configuration constants (mapped from current provider)
+LLM_TEMPERATURE = 0.0
+LLM_TOP_P = 1.0  
+LLM_MAX_TOKENS = 4096
+LLM_TIMEOUT = 180
+LLM_MAX_RETRIES = 5
+LLM_RETRY_DELAY = 10.0

@@ -6,39 +6,41 @@ Automated evaluation framework for comparing RAG and Agentic AI system outputs u
 
 ```
 llm-as-a-judge/
-├── evaluation_system/          # Core LLM-as-a-Judge framework
-│   ├── evaluation.py           # Evaluation orchestration
-│   ├── llm_client.py           # Azure OpenAI / OpenAI API client
-│   ├── models.py               # Data models (EvaluationInput, AnswerEvaluation)
-│   ├── enums.py                # SystemType, EvaluationDimension enums
-│   ├── templates.py            # Jinja2 evaluation prompts
-│   ├── statistics.py           # Statistical analysis (Cohen's d, t-tests)
-│   ├── excel_processor.py      # Excel I/O utilities
-│   └── agents/                 # Specialized evaluation agents (GDPR, EU AI Act)
+├── run_evaluation_suite.py        # Main entry point: batch evaluation
+├── run_end_to_end_evaluation.py   # Main entry point: full pipeline
+├── run_llm_evaluation.py          # Main entry point: single evaluation
+├── requirements.txt               # Python dependencies
 │
-├── agentic_system/             # Agentic AI implementation
-│   ├── agents/                 # Agent implementations
-│   │   ├── autonomous_agent.py # Planning and tool execution
-│   │   ├── rag_agent.py        # ChromaDB knowledge retrieval
-│   │   └── topic_identification_agent.py
-│   ├── core/                   # Base classes (BaseAgent, Task, AgentResponse)
-│   ├── tools/                  # Web search, content synthesis, validation
-│   └── audit/                  # Audit trail logging
+├── evaluation_system/             # Core LLM-as-a-Judge framework
+│   ├── evaluation.py              # Evaluation orchestration
+│   ├── llm_client.py              # Multi-provider LLM client (Azure, Gemini)
+│   ├── advanced_config.py         # Provider configuration management
+│   ├── models.py                  # Data models
+│   ├── statistics.py              # Statistical analysis (Cohen's d, t-tests)
+│   └── agents/                    # Regulatory agents (GDPR, EU AI Act, Audit)
 │
-├── rag_system/                 # RAG system configuration
+├── agentic_system/                # Agentic AI implementation
+│   ├── agents/                    # Agent implementations
+│   ├── core/                      # Base classes
+│   ├── tools/                     # Web search, content synthesis
+│   └── audit/                     # Audit trail logging
 │
-├── Statistical Evaluation/     # Reliability analysis
-│   ├── Reliability_Study.ipynb       # Inter-rater reliability analysis
-│   ├── Reliability_Study_v2.ipynb    # Updated analysis
-│   ├── pairwise_study.ipynb          # Pairwise preference analysis
-│   └── aggregated_results.xlsx       # Evaluation results (Q&A redacted)
+├── rag_system/                    # RAG system configuration
 │
-├── test/                       # Unit and integration tests
+├── Statistical Evaluation/        # Reliability analysis notebooks
+│   ├── Reliability_Study_v2.ipynb # Inter-rater reliability analysis
+│   ├── pairwise_study.ipynb       # Pairwise preference analysis
+│   └── aggregated_results.xlsx    # Evaluation results (Q&A redacted)
 │
-├── run_evaluation_suite.py     # Batch evaluation orchestrator
-├── run_end_to_end_evaluation.py # Full pipeline execution
-├── create_chroma_db.py         # Vector database creation
-└── requirements.txt            # Python dependencies
+├── scripts/                       # Setup and utility scripts
+│   ├── create_chroma_db.py        # Vector database creation
+│   ├── create_*_chroma_db.py      # Domain-specific databases
+│   ├── process_excel_for_evaluation.py
+│   └── ...                        # Other utilities
+│
+├── test/                          # Unit and integration tests
+│
+└── debug/                         # Debug and troubleshooting scripts
 ```
 
 ## Installation
@@ -46,7 +48,9 @@ llm-as-a-judge/
 ### Prerequisites
 
 - Python 3.10 or higher
-- Azure subscription with OpenAI service (or OpenAI API key)
+- One of the following LLM providers:
+  - Azure OpenAI service with service principal authentication
+  - Google Cloud project with Vertex AI enabled
 
 ### Setup
 
@@ -65,10 +69,15 @@ pip install -r requirements.txt
 
 ### Environment Variables
 
-Create a `.env` file in the project root:
+Create a `.env` file in the project root. Configure either Azure OpenAI or Google Vertex AI:
+
+**Option 1: Azure OpenAI**
 
 ```bash
-# Azure Service Principal Authentication (recommended)
+# LLM Provider Selection
+LLM_PROVIDER=AZURE
+
+# Azure Service Principal Authentication
 AZURE_TENANT_ID=<your-tenant-id>
 AZURE_CLIENT_ID=<your-service-principal-client-id>
 AZURE_CLIENT_SECRET=<your-service-principal-secret>
@@ -77,9 +86,24 @@ AZURE_CLIENT_SECRET=<your-service-principal-secret>
 AZURE_OPENAI_ENDPOINT=https://<your-resource>.openai.azure.com/
 AZURE_OPENAI_DEPLOYMENT=gpt-4o-mini
 AZURE_OPENAI_API_VERSION=2024-08-01-preview
+```
 
-# Alternative: Standard OpenAI API
-OPENAI_API_KEY=<your-openai-key>
+**Option 2: Google Vertex AI (Gemini)**
+
+```bash
+# LLM Provider Selection
+LLM_PROVIDER=GEMINI
+
+# Google Cloud Configuration
+GOOGLE_CLOUD_PROJECT=<your-project-id>
+GOOGLE_CLOUD_LOCATION=europe-central2
+GOOGLE_GENAI_USE_VERTEXAI=True
+```
+
+Before using Vertex AI, authenticate with Google Cloud:
+
+```bash
+gcloud auth application-default login
 ```
 
 ## Usage
@@ -97,13 +121,14 @@ python run_end_to_end_evaluation.py
 ### Programmatic Usage
 
 ```python
-from evaluation_system.config import EvalConfig
+from evaluation_system.advanced_config import create_default_config
 from evaluation_system.evaluation import evaluate_answers_with_snippets
 from evaluation_system.models import EvaluationInput, SourceSnippet
-from evaluation_system.enums import SystemType
+from evaluation_system.enums import SystemType, LLMProvider
 
-# Configure evaluation
-config = EvalConfig()
+# Configure evaluation with specific provider
+config = create_default_config()
+config.llm_provider = LLMProvider.GEMINI  # or LLMProvider.AZURE
 
 # Create evaluation input
 eval_input = EvaluationInput(
@@ -139,9 +164,9 @@ Key notebooks:
 
 ```bash
 # Create ChromaDB for specific domains
-python create_chroma_db.py
-python create_it_governance_chroma_db.py
-python create_gifts_entertainment_chroma_db.py
+python scripts/create_chroma_db.py
+python scripts/create_it_governance_chroma_db.py
+python scripts/create_gifts_entertainment_chroma_db.py
 ```
 
 ## Evaluation Dimensions
@@ -184,9 +209,52 @@ Autonomous agent implementation:
 
 Jupyter notebooks for analyzing inter-rater reliability between LLM judges (GPT-4o-mini and Gemini Flash).
 
-## Authentication
+## LLM Provider Configuration
 
-The framework uses Azure AD service principal authentication for enterprise deployment:
+The framework supports multiple LLM providers through a modular client system.
+
+### Supported Providers
+
+| Provider | Model | Authentication |
+|----------|-------|----------------|
+| Azure OpenAI | GPT-4o-mini | Service Principal |
+| Google Vertex AI | Gemini 2.0 Flash | Application Default Credentials |
+
+### Switching Providers
+
+**Via environment variable:**
+
+```bash
+export LLM_PROVIDER=GEMINI  # or AZURE
+```
+
+**Programmatically:**
+
+```python
+from evaluation_system.advanced_config import create_default_config
+from evaluation_system.enums import LLMProvider
+
+config = create_default_config()
+config.llm_provider = LLMProvider.GEMINI
+```
+
+### Google Vertex AI Setup
+
+1. Install the Google Cloud SDK
+2. Authenticate with your Google Cloud account:
+   ```bash
+   gcloud auth application-default login
+   ```
+3. Set the required environment variables:
+   ```bash
+   export GOOGLE_CLOUD_PROJECT=<your-project-id>
+   export GOOGLE_CLOUD_LOCATION=europe-central2
+   export GOOGLE_GENAI_USE_VERTEXAI=True
+   ```
+
+### Azure OpenAI Setup
+
+The framework uses Azure AD service principal authentication:
 
 ```python
 from azure.identity import ClientSecretCredential, get_bearer_token_provider

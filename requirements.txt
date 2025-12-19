@@ -5,6 +5,10 @@
 openai>=1.0.0
 azure-identity>=1.15.0
 
+# Google Vertex AI / Gemini
+google-genai>=1.0.0
+certifi>=2024.0.0
+
 # LangChain ecosystem (for agentic system)
 langchain>=0.1.0
 langchain-openai>=0.0.5
@@ -36,6 +40,9 @@ requests>=2.31.0
 
 # Environment management
 python-dotenv>=1.0.0
+
+# Retry logic
+tenacity>=8.2.0
 
 # Development dependencies
 pytest>=7.4.0

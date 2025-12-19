@@ -15,6 +15,12 @@ class SystemType(Enum):
     HYBRID = "hybrid"
 
 
+class LLMProvider(Enum):
+    """Enumeration of supported LLM providers for evaluation."""
+    AZURE = "azure"
+    GEMINI = "gemini"
+
+
 class EvaluationDimension(Enum):
     """
     Academic evaluation dimensions based on established IR and NLP metrics.

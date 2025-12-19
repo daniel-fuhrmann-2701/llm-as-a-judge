@@ -19,11 +19,21 @@ Methodology:
 import os
 import sys
 from pathlib import Path
+from dotenv import load_dotenv
+
+# Load environment variables from .env file if it exists
+env_path = Path(__file__).parent / ".env"
+if env_path.exists():
+    load_dotenv(env_path)
+    print(f"✅ Loaded environment variables from {env_path}")
+else:
+    print(f"ℹ️  No .env file found at {env_path}")
 
 # Directly import the necessary components from your evaluation system
 import sys
 from evaluation_system.main import setup_logging
-from evaluation_system.config import EvalConfig
+from evaluation_system.advanced_config import create_default_config
+from evaluation_system.enums import LLMProvider
 from evaluation_system.excel_processor import load_excel_with_snippets, export_evaluation_results_to_excel
 from evaluation_system.evaluation import evaluate_answers_with_snippets
 from evaluation_system.enums import SystemType
@@ -47,6 +57,7 @@ EVALUATION_JOBS = [
         "question_col": "Question",
         "answer_col": "Answer",
         "snippet_col": "Snippets",
+        "llm_provider": "GEMINI",
     },
     {
         "name": "RAG System - IT Governance",
@@ -57,6 +68,7 @@ EVALUATION_JOBS = [
         "question_col": "Question",
         "answer_col": "Answer",
         "snippet_col": "Snippets",
+        "llm_provider": "GEMINI",
     },
     {
         "name": "RAG System - Input Questions v0",
@@ -67,6 +79,7 @@ EVALUATION_JOBS = [
         "question_col": "Question",
         "answer_col": "Answer",
         "snippet_col": "Snippets",
+        "llm_provider": "GEMINI",
     },
     {
         "name": "RAG System - Input Questions v1",
@@ -77,6 +90,7 @@ EVALUATION_JOBS = [
         "question_col": "Question",
         "answer_col": "Answer",
         "snippet_col": "Snippets",
+        "llm_provider": "GEMINI",
     },
     {
         "name": "RAG System - Input Questions v2",
@@ -87,6 +101,7 @@ EVALUATION_JOBS = [
         "question_col": "Question",
         "answer_col": "Answer",
         "snippet_col": "Snippets",
+        "llm_provider": "GEMINI",
     },
     {
         "name": "RAG System - Input Questions v3 (Topic Cluster)",
@@ -97,39 +112,43 @@ EVALUATION_JOBS = [
         "question_col": "Question",
         "answer_col": "Answer",
         "snippet_col": "Snippets",
+        "llm_provider": "GEMINI",
     },
-    
+
     # Agentic System Evaluations (agentic_focused profile)
-    {
-        "name": "Agentic System - Gifts & Entertainment",
-        "profile": "agentic_focused",
-        "directory": "Q&A/Agentic q&a",
-        "file": "gifts_entertainment.xlsx",
-        "system_type": "agentic",
-        "question_col": "Question",
-        "answer_col": "Answer",
-        "snippet_col": "Database_Used",
-    },
-    {
-        "name": "Agentic System - IT Governance",
-        "profile": "agentic_focused",
-        "directory": "Q&A/Agentic q&a",
-        "file": "it_governance.xlsx",
-        "system_type": "agentic",
-        "question_col": "Question",
-        "answer_col": "Answer",
-        "snippet_col": "Database_Used",
-    },
-    {
-        "name": "Agentic System - New HQ",
-        "profile": "agentic_focused",
-        "directory": "Q&A/Agentic q&a",
-        "file": "newHQ.xlsx",
-        "system_type": "agentic",
-        "question_col": "Question",
-        "answer_col": "Answer",
-        "snippet_col": "Database_Used",
-    },
+    # {
+    #     "name": "Agentic System - Gifts & Entertainment",
+    #     "profile": "agentic_focused",
+    #     "directory": "Q&A/Agentic q&a",
+    #     "file": "gifts_entertainment.xlsx",
+    #     "system_type": "agentic",
+    #     "question_col": "Question",
+    #     "answer_col": "Answer",
+    #     "snippet_col": "Database_Used",
+    #     "llm_provider": "GEMINI",
+    # },
+    # {
+    #     "name": "Agentic System - IT Governance",
+    #     "profile": "agentic_focused",
+    #     "directory": "Q&A/Agentic q&a",
+    #     "file": "it_governance.xlsx",
+    #     "system_type": "agentic",
+    #     "question_col": "Question",
+    #     "answer_col": "Answer",
+    #     "snippet_col": "Database_Used",
+    #     "llm_provider": "GEMINI",
+    # },
+    # {
+    #     "name": "Agentic System - New HQ",
+    #     "profile": "agentic_focused",
+    #     "directory": "Q&A/Agentic q&a",
+    #     "file": "newHQ.xlsx",
+    #     "system_type": "agentic",
+    #     "question_col": "Question",
+    #     "answer_col": "Answer",
+    #     "snippet_col": "Database_Used",
+    #     "llm_provider": "GEMINI",
+    # },
 ]
 
 # ==============================================================================
@@ -138,25 +157,30 @@ EVALUATION_JOBS = [
 
 def run_evaluation(job: dict):
     """
-    Executes the evaluation framework for a single file by directly calling
-    the evaluation functions with proper system type assignment.
+    Executes the evaluation framework for a single file using the modular LLM system
+    with Gemini as the provider.
     """
     file_path = Path(job["directory"]) / job["file"]
     profile = job["profile"]
     system_type_str = job["system_type"]
+    llm_provider = job.get("llm_provider", "GEMINI")
     
     print(f"    ▶️  Running evaluation for: {file_path.name}")
     print(f"        Profile: {profile}")
     print(f"        System Type: {system_type_str}")
+    print(f"        LLM Provider: {llm_provider}")
 
     try:
-        # 1. Create a basic EvalConfig object
-        config = EvalConfig()
+        # 1. Create configuration using the new modular system
+        config = create_default_config()
         
-        # 2. Set up logging for the evaluation run
+        # 2. Set the LLM provider to Gemini
+        config.llm_provider = LLMProvider.GEMINI
+        print(f"        ✅ Configured to use {config.llm_provider.value} provider")
+        
         setup_logging()
 
-        # 3. Load Excel data using the evaluation system's loader
+        # 4. Load Excel data using the evaluation system's loader
         print(f"        Loading Excel data...")
         evaluation_inputs = load_excel_with_snippets(
             str(file_path),
@@ -166,7 +190,8 @@ def run_evaluation(job: dict):
             system_type_col=None  # We'll set this manually
         )
 
-        # 3a. Fallback answer merger: if internal answer is "I don't know." but a web fallback exists,
+        
+        # 4a. Fallback answer merger: if internal answer is "I don't know." but a web fallback exists,
         # replace the answer with synthesized web fallback content so evaluation reflects actual retrieval.
         fallback_header = "--- Web Search Fallback ---"
         for eval_input in evaluation_inputs:
@@ -218,23 +243,23 @@ def run_evaluation(job: dict):
                 eval_input.metadata = eval_input.metadata or {}
                 eval_input.metadata.setdefault("fallback_used", False)
         
-        # 4. CRITICAL: Set the system type for each evaluation input
+        # 5. CRITICAL: Set the system type for each evaluation input
         system_type_enum = SystemType(system_type_str)
         for eval_input in evaluation_inputs:
             eval_input.system_type = system_type_enum
         
         print(f"        Loaded {len(evaluation_inputs)} questions")
-        print(f"        Starting evaluations...")
+        print(f"        Starting evaluations with {config.llm_provider.value}...")
         
-        # 5. Run the evaluation with snippets
+        # 6. Run the evaluation with snippets using the new modular system
         evaluations = evaluate_answers_with_snippets(evaluation_inputs, config)
         
         if not evaluations:
             print(f"    ❌ No evaluations completed successfully")
             return 1
         
-        # 6. Save results to Excel format
-        output_dir = Path(f"{file_path.stem}_evaluation_results")
+        # 7. Save results to Excel format
+        output_dir = Path(f"{file_path.stem}_evaluation_results_gemini")
         output_dir.mkdir(exist_ok=True)
         
         # Convert evaluations to dictionary format for Excel export
@@ -244,6 +269,7 @@ def run_evaluation(job: dict):
                 "question": evaluation_inputs[i].query,
                 "answer": eval_result.answer,
                 "system_type": eval_result.system_type.value if eval_result.system_type else system_type_str,
+                "llm_provider": config.llm_provider.value,  # Add LLM provider info
                 "scores": {dim.value: score for dim, score in eval_result.scores.items()},
                 "weighted_total": eval_result.weighted_total,
                 "raw_total": eval_result.raw_total,
@@ -259,11 +285,12 @@ def run_evaluation(job: dict):
             evaluation_dicts.append(eval_dict)
         
         # Save Excel results
-        excel_output_path = output_dir / f"{file_path.stem}_evaluation_results.xlsx"
+        excel_output_path = output_dir / f"{file_path.stem}_evaluation_results_gemini.xlsx"
         export_evaluation_results_to_excel(evaluation_dicts, str(excel_output_path))
         
         print(f"    ✅ Evaluation successful!")
         print(f"        Processed: {len(evaluations)} questions")
+        print(f"        LLM Provider: {config.llm_provider.value}")
         print(f"        Results saved to: {excel_output_path}")
         
         return 0
@@ -276,9 +303,9 @@ def run_evaluation(job: dict):
 
 
 def main():
-    """Main function to orchestrate the evaluation suite."""
+    """Main function to orchestrate the evaluation suite with Gemini LLM provider."""
     print("======================================================")
-    print("  Starting Comprehensive Evaluation Suite             ")
+    print("  Starting Gemini-Based Evaluation Suite             ")
     print("======================================================")
     
     if not EVALUATION_JOBS:
